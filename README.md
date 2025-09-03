@@ -31,6 +31,10 @@
           <img src="https://img.shields.io/badge/Vue.js-4FC08D?style=flat&logo=Vue.js&logoColor=white">
           </div>
     </div>
+    <div align= "center">
+    <h2 style="border-bottom: 1px solid #d8dee4; color: #282d33;"> 🌵 HELLO </h2> <br> 
+          <img src="https://visitor-badge.laobi.icu/badge?page_id=seonghwaya.seonghwaya&"  />
+    </div>
 </div>
     
 
