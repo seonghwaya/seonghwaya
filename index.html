@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>SEONGHWA 항해기</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/galmuri@latest/dist/galmuri.css">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html,body { height:100%; }
+  body {
+    background:#060F26;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    font-family:'Galmuri11', monospace; color:#E6C15A;
+    gap:10px; overflow:hidden; touch-action:none;
+  }
+  .stars { position:fixed; inset:0; pointer-events:none; }
+  .stars i { position:absolute; width:3px; height:3px; background:#E6C15A; animation:tw 3s infinite; }
+  @keyframes tw { 0%,100%{opacity:.1} 50%{opacity:.8} }
+  h1 { font-size:15px; letter-spacing:2px; text-shadow:2px 2px 0 #000; }
+  .frame {
+    padding:6px; background:#0A1E4A;
+    border:3px solid #E6C15A; outline:3px solid #0A1E4A; box-shadow:0 0 0 6px #7E5C1E, 6px 8px 0 rgba(0,0,0,.5);
+  }
+  canvas {
+    display:block; width:min(92vw, 720px); aspect-ratio:3/2;
+    image-rendering:pixelated; image-rendering:crisp-edges; background:#1E5FA8;
+  }
+  .hint { font-size:11px; color:#9FB6E0; text-shadow:1px 1px 0 #000; }
+  .pads { display:none; width:min(92vw,720px); justify-content:space-between; user-select:none; }
+  .pads .grp { display:flex; gap:8px; }
+  .pads button {
+    font-family:inherit; font-size:16px; color:#E6C15A; background:#0A1E4A;
+    border:2px solid #E6C15A; width:52px; height:52px;
+  }
+  .pads button:active { background:#E6C15A; color:#0A1E4A; }
+  @media (hover:none) and (pointer:coarse) { .pads { display:flex; } }
+</style>
+</head>
+<body>
+<div class="stars" id="stars"></div>
+<h1>⚓ SEONGHWA 항해기 ⚓</h1>
+<div class="frame"><canvas id="g" width="480" height="320"></canvas></div>
+<div class="hint">← → 키 : 항로 / ↑ ↓ : 돛 올리기·내리기 / SPACE : 입항·대화</div>
+<div class="pads">
+  <div class="grp"><button data-k="ArrowLeft">◀</button><button data-k="ArrowRight">▶</button></div>
+  <div class="grp"><button data-k="ArrowUp">▲</button><button data-k="ArrowDown">▼</button><button data-k=" ">⚓</button></div>
+</div>
+
+<script>
+"use strict";
+// ───────── 기본 설정 ─────────
+const cv = document.getElementById('g'), ctx = cv.getContext('2d');
+ctx.imageSmoothingEnabled = false;
+const W = 480, H = 320, WORLD = { w: 1600, h: 1200 };
+const F = '"Galmuri11", monospace';
+
+// 배경 별
+const stars = document.getElementById('stars');
+for (let i = 0; i < 40; i++) {
+  const s = document.createElement('i');
+  s.style.left = Math.random()*100 + '%';
+  s.style.top = Math.random()*100 + '%';
+  s.style.animationDelay = Math.random()*3 + 's';
+  stars.appendChild(s);
+}
+
+// ───────── 월드 데이터 ─────────
+const islands = [
+  { x: 380,  y: 300, r: 120 },
+  { x: 1150, y: 420, r: 100 },
+  { x: 700,  y: 930, r: 110 },
+  { x: 1360, y: 960, r: 60 },
+  { x: 190,  y: 820, r: 55 },
+];
+const ports = [
+  { ix: 0, x: 380,  y: 452, name: '달구벌 항',
+    lines: ['어서 오게! 여기는 달구벌 항일세.',
+            '나는 소소한 하루를 항해하는 성화라고 하네.',
+            '만나서 반갑군. 편히 둘러보게나!'] },
+  { ix: 1, x: 1018, y: 420, name: '레몬 섬',
+    lines: ['상큼한 바람이 부는 레몬 섬이라네. 🍋',
+            '나는 소소한 행동에 감동하며 기뻐하는 사람이지.',
+            '작은 파도 하나에도 이야기가 있는 법이라네.'] },
+  { ix: 2, x: 700,  y: 790, name: '선인장 곶',
+    lines: ['척박해 보여도 꽃은 핀다네. 🌵',
+            '하루하루에 감사하며 항해하는 중이야.',
+            '들러 줘서 고맙네. 순풍이 함께하길!'] },
+];
+const coins = [];
+function spawnCoin() {
+  for (let t = 0; t < 60; t++) {
+    const x = 60 + Math.random()*(WORLD.w-120), y = 60 + Math.random()*(WORLD.h-120);
+    if (islands.every(i => Math.hypot(x-i.x, y-i.y) > i.r + 40)) { coins.push({x, y, t: Math.random()*6}); return; }
+  }
+}
+for (let i = 0; i < 6; i++) spawnCoin();
+
+// ───────── 상태 ─────────
+const ship = { x: 700, y: 620, a: -Math.PI/2, v: 0, sail: 1 };
+let windA = 0.6, windT = 0;
+let day = 1, dayT = 0, thanks = 0;
+const keys = {};
+let dlg = null; // {name, lines, li, ci, done}
+let nearPort = null;
+
+// ───────── 입력 ─────────
+addEventListener('keydown', e => {
+  if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key)) e.preventDefault();
+  if (e.repeat) return;
+  keys[e.key] = true;
+  if (e.key === 'ArrowUp' && !dlg) ship.sail = Math.min(2, ship.sail+1);
+  if (e.key === 'ArrowDown' && !dlg) ship.sail = Math.max(0, ship.sail-1);
+  if (e.key === ' ' || e.key === 'Enter') action();
+});
+addEventListener('keyup', e => keys[e.key] = false);
+document.querySelectorAll('.pads button').forEach(b => {
+  const k = b.dataset.k;
+  b.addEventListener('pointerdown', e => { e.preventDefault();
+    keys[k] = true;
+    if (k === 'ArrowUp' && !dlg) ship.sail = Math.min(2, ship.sail+1);
+    if (k === 'ArrowDown' && !dlg) ship.sail = Math.max(0, ship.sail-1);
+    if (k === ' ') action();
+  });
+  b.addEventListener('pointerup',   () => keys[k] = false);
+  b.addEventListener('pointerleave',() => keys[k] = false);
+});
+function action() {
+  if (dlg) {
+    if (!dlg.done) { dlg.ci = dlg.lines[dlg.li].length; dlg.done = true; }
+    else if (dlg.li < dlg.lines.length-1) { dlg.li++; dlg.ci = 0; dlg.done = false; }
+    else dlg = null;
+  } else if (nearPort) {
+    dlg = { name: nearPort.name + ' · 항해사 성화', lines: nearPort.lines, li: 0, ci: 0, done: false };
+  }
+}
+
+// 시작 대사
+dlg = { name: '항해사 성화', li: 0, ci: 0, done: false, lines: [
+  '반갑네, 항해사여! 나의 바다에 온 걸 환영하네.',
+  '←→ 로 키를 잡고, ↑↓ 로 돛을 조절하게.',
+  '바람(HUD의 화살표)을 등지면 배가 빨라진다네.',
+  '세 항구를 돌며 ✦ 감사 조각도 모아 보게. 출항!' ]};
+
+// ───────── 유틸 ─────────
+const fract = n => n - Math.floor(n);
+const noise = (x, y) => fract(Math.sin(x*12.9898 + y*78.233) * 43758.5453);
+function adiff(a, b) { let d = (a-b) % (Math.PI*2); if (d > Math.PI) d -= Math.PI*2; if (d < -Math.PI) d += Math.PI*2; return Math.abs(d); }
+
+// ───────── 업데이트 ─────────
+let last = 0, T = 0;
+function update(dt) {
+  T += dt;
+  windT += dt;
+  windA += Math.sin(windT*0.11) * 0.0009 + 0.0004;
+
+  if (!dlg) {
+    if (keys['ArrowLeft'])  ship.a -= 1.7*dt;
+    if (keys['ArrowRight']) ship.a += 1.7*dt;
+    const wf = 1.28 - (adiff(ship.a, windA)/Math.PI) * 0.95;      // 순풍 1.28 ~ 역풍 0.33
+    const target = [0, 34, 62][ship.sail] * wf;
+    ship.v += (target - ship.v) * Math.min(1, dt*0.9);
+    let nx = ship.x + Math.cos(ship.a)*ship.v*dt;
+    let ny = ship.y + Math.sin(ship.a)*ship.v*dt;
+    for (const i of islands) {
+      const d = Math.hypot(nx-i.x, ny-i.y);
+      if (d < i.r + 10) { const k = (i.r+10)/d; nx = i.x + (nx-i.x)*k; ny = i.y + (ny-i.y)*k; ship.v *= 0.4; }
+    }
+    ship.x = Math.max(14, Math.min(WORLD.w-14, nx));
+    ship.y = Math.max(14, Math.min(WORLD.h-14, ny));
+
+    dayT += dt; if (dayT > 25) { dayT = 0; day++; }
+    for (let i = coins.length-1; i >= 0; i--) {
+      if (Math.hypot(ship.x-coins[i].x, ship.y-coins[i].y) < 18) { coins.splice(i,1); thanks++; spawnCoin(); }
+    }
+  } else if (!dlg.done) {
+    dlg.ci += dt*22;
+    if (dlg.ci >= dlg.lines[dlg.li].length) { dlg.ci = dlg.lines[dlg.li].length; dlg.done = true; }
+  }
+
+  nearPort = null;
+  for (const p of ports) if (Math.hypot(ship.x-p.x, ship.y-p.y) < 55) nearPort = p;
+}
+
+// ───────── 렌더 ─────────
+function draw() {
+  const camX = Math.max(0, Math.min(WORLD.w-W, ship.x - W/2));
+  const camY = Math.max(0, Math.min(WORLD.h-H, ship.y - H/2));
+
+  // 바다
+  ctx.fillStyle = '#1E5FA8'; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = '#3D7FC4';
+  for (let gy = Math.floor(camY/28)*28; gy < camY+H+28; gy += 28) {
+    const off = ((T*22*(((gy/28)%2)?1:-1)) % 32 + 32) % 32;
+    for (let gx = Math.floor(camX/32)*32 - 32; gx < camX+W+32; gx += 32) {
+      ctx.fillRect(Math.round(gx - camX + off), Math.round(gy - camY + Math.sin((gx+T*40)/60)*2), 14, 4);
+    }
+  }
+
+  // 섬
+  for (const isl of islands) {
+    if (isl.x+isl.r < camX-8 || isl.x-isl.r > camX+W+8 || isl.y+isl.r < camY-8 || isl.y-isl.r > camY+H+8) continue;
+    const g = 8;
+    for (let px = isl.x-isl.r; px < isl.x+isl.r; px += g)
+      for (let py = isl.y-isl.r; py < isl.y+isl.r; py += g) {
+        const cx = Math.floor(px/g)*g, cy = Math.floor(py/g)*g;
+        const d = Math.hypot(cx+4-isl.x, cy+4-isl.y);
+        const wob = noise(cx, cy)*10;
+        if (d > isl.r - wob) continue;
+        let c;
+        if (d > isl.r - wob - 12) c = '#E8D08A';
+        else c = noise(cx*3, cy*3) > 0.82 ? '#4F8A44' : '#6FA85E';
+        ctx.fillStyle = c;
+        ctx.fillRect(Math.round(cx-camX), Math.round(cy-camY), g, g);
+      }
+  }
+
+  // 항구 (부두 + 깃발 + 이름)
+  for (const p of ports) {
+    const sx = Math.round(p.x-camX), sy = Math.round(p.y-camY);
+    if (sx < -80 || sx > W+80 || sy < -80 || sy > H+80) continue;
+    ctx.fillStyle = '#8B5A2B'; ctx.fillRect(sx-16, sy-6, 32, 12);
+    ctx.fillStyle = '#6E441F';
+    for (let i = -14; i <= 12; i += 8) ctx.fillRect(sx+i, sy-6, 3, 12);
+    ctx.fillStyle = '#4A2E14'; ctx.fillRect(sx+12, sy-26, 3, 20);
+    ctx.fillStyle = '#C93A3A'; ctx.fillRect(sx+15, sy-26, 12, 7);
+    ctx.font = '10px ' + F; ctx.textAlign = 'center';
+    ctx.fillStyle = '#00000088'; ctx.fillRect(sx-34, sy-46, 68, 14);
+    ctx.fillStyle = '#F5F1E6'; ctx.fillText(p.name, sx, sy-35);
+    if (nearPort === p && !dlg) {
+      ctx.fillStyle = '#E6C15A';
+      if (Math.floor(T*2)%2) ctx.fillText('⚓ SPACE 입항', sx, sy+28);
+    }
+  }
+
+  // 감사 조각
+  ctx.textAlign = 'left';
+  for (const c of coins) {
+    const sx = Math.round(c.x-camX), sy = Math.round(c.y-camY + Math.sin(T*3+c.t)*3);
+    if (sx < -10 || sx > W+10 || sy < -10 || sy > H+10) continue;
+    ctx.fillStyle = '#E6C15A'; ctx.fillRect(sx-3, sy-3, 6, 6);
+    ctx.fillStyle = '#FFF1B8'; ctx.fillRect(sx-1, sy-5, 2, 2); ctx.fillRect(sx-1, sy+3, 2, 2);
+    ctx.fillRect(sx-5, sy-1, 2, 2); ctx.fillRect(sx+3, sy-1, 2, 2);
+  }
+
+  // 배
+  const bx = Math.round(ship.x-camX), by = Math.round(ship.y-camY);
+  ctx.save();
+  ctx.translate(bx, by);
+  ctx.rotate(ship.a + Math.PI/2);
+  ctx.translate(0, Math.sin(T*2.2)*1.5);
+  ctx.fillStyle = '#6E441F'; ctx.fillRect(-7, -14, 14, 28);
+  ctx.fillStyle = '#8B5A2B'; ctx.fillRect(-5, -17, 10, 4);   // 뱃머리
+  ctx.fillStyle = '#E6C15A'; ctx.fillRect(-7, 10, 14, 2);
+  if (ship.sail > 0) {
+    ctx.fillStyle = '#F5F1E6';
+    ctx.fillRect(-9, -8, 18, ship.sail === 2 ? 14 : 9);
+    ctx.fillStyle = '#DDD5C0'; ctx.fillRect(-9, ship.sail === 2 ? 3 : -2, 18, 3);
+  }
+  ctx.fillStyle = '#4A2E14'; ctx.fillRect(-1, -10, 2, 18);
+  ctx.fillStyle = '#C93A3A'; ctx.fillRect(-1, -14, 8, 3);
+  ctx.restore();
+  if (ship.v > 20) {
+    ctx.fillStyle = '#FFFFFFAA';
+    const wx = bx - Math.cos(ship.a)*16, wy = by - Math.sin(ship.a)*16;
+    if (Math.floor(T*6)%2) ctx.fillRect(Math.round(wx)-2, Math.round(wy)-2, 4, 4);
+  }
+
+  // HUD
+  ctx.fillStyle = '#0A1E4A'; ctx.fillRect(0, 0, W, 24);
+  ctx.fillStyle = '#E6C15A'; ctx.fillRect(0, 24, W, 2);
+  ctx.font = '10px ' + F; ctx.fillStyle = '#F5F1E6'; ctx.textAlign = 'left';
+  ctx.fillText('⚓ 항해 ' + day + '일차', 8, 16);
+  ctx.fillText('✦ 감사 ×' + thanks, 110, 16);
+  ctx.fillText('속도 ' + (ship.v/10).toFixed(1) + '노트  돛 ' + '▮'.repeat(ship.sail) + '▯'.repeat(2-ship.sail), 196, 16);
+  ctx.fillText('바람', 388, 16);
+  ctx.save();
+  ctx.translate(432, 12); ctx.rotate(windA);
+  ctx.fillStyle = '#E6C15A';
+  ctx.fillRect(-8, -1, 14, 2); ctx.fillRect(4, -3, 2, 6); ctx.fillRect(6, -2, 2, 4);
+  ctx.restore();
+
+  // 대화창
+  if (dlg) {
+    ctx.fillStyle = '#F5F1E6'; ctx.fillRect(8, H-78, W-16, 70);
+    ctx.fillStyle = '#0A1E4A'; ctx.fillRect(12, H-74, W-24, 62);
+    ctx.strokeStyle = '#E6C15A'; ctx.lineWidth = 1; ctx.strokeRect(14.5, H-72.5, W-29, 59);
+    // 초상화
+    ctx.fillStyle = '#122B54'; ctx.fillRect(22, H-66, 46, 46);
+    ctx.strokeStyle = '#E6C15A'; ctx.strokeRect(22.5, H-65.5, 45, 45);
+    ctx.fillStyle = '#F0C08A'; ctx.fillRect(31, H-54, 28, 26);
+    ctx.fillStyle = '#2E6DB4'; ctx.fillRect(31, H-59, 28, 8); ctx.fillRect(57, H-56, 7, 7);
+    ctx.fillStyle = '#222'; ctx.fillRect(37, H-45, 4, 5); ctx.fillRect(50, H-45, 4, 5);
+    ctx.fillStyle = '#A05A34'; ctx.fillRect(41, H-35, 9, 3);
+    // 이름표
+    ctx.fillStyle = '#0A1E4A'; ctx.fillRect(20, H-88, 8 + ctx.measureText(dlg.name).width + 8, 16);
+    ctx.strokeStyle = '#F5F1E6'; ctx.strokeRect(20.5, H-87.5, 8 + ctx.measureText(dlg.name).width + 7, 15);
+    ctx.fillStyle = '#E6C15A'; ctx.fillText(dlg.name, 28, H-76);
+    // 본문 (타자 효과)
+    ctx.font = '11px ' + F; ctx.fillStyle = '#F5F1E6';
+    ctx.fillText(dlg.lines[dlg.li].slice(0, Math.floor(dlg.ci)), 80, H-40);
+    if (dlg.done && Math.floor(T*2.5)%2) {
+      ctx.fillStyle = '#E6C15A';
+      ctx.fillRect(W-38, H-26, 10, 3); ctx.fillRect(W-35, H-23, 4, 3);
+    }
+  } else if (nearPort === null && ship.sail === 0 && ship.v < 3) {
+    ctx.font = '10px ' + F; ctx.fillStyle = '#FFFFFFB0'; ctx.textAlign = 'center';
+    ctx.fillText('↑ 키로 돛을 올리게!', W/2, H-14);
+  }
+  ctx.textAlign = 'left';
+}
+
+// ───────── 루프 ─────────
+function loop(ts) {
+  const dt = Math.min(0.05, (ts - last)/1000 || 0);
+  last = ts;
+  update(dt);
+  draw();
+  requestAnimationFrame(loop);
+}
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => requestAnimationFrame(loop));
+else requestAnimationFrame(loop);
+</script>
+</body>
+</html>

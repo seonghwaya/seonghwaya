@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 110" width="480" height="110">
+  <!-- 배경 -->
+  <rect x="0" y="0" width="480" height="110" fill="#0A1E4A"/>
+
+  <!-- 픽셀 이중 프레임 -->
+  <rect x="6" y="6" width="468" height="98" fill="none" stroke="#E6C15A" stroke-width="4"/>
+  <rect x="16" y="16" width="448" height="78" fill="none" stroke="#F5F1E6" stroke-width="2"/>
+  <!-- 모서리 장식 -->
+  <g fill="#E6C15A">
+    <rect x="16" y="16" width="10" height="10"/><rect x="454" y="16" width="10" height="10"/>
+    <rect x="16" y="84" width="10" height="10"/><rect x="454" y="84" width="10" height="10"/>
+  </g>
+
+  <!-- 반짝임 -->
+  <g fill="#E6C15A">
+    <rect x="48" y="34" width="5" height="5"><animate attributeName="opacity" values="0;1;0" dur="2.4s" repeatCount="indefinite"/></rect>
+    <rect x="424" y="66" width="5" height="5"><animate attributeName="opacity" values="1;0;1" dur="3s" repeatCount="indefinite"/></rect>
+    <rect x="404" y="30" width="4" height="4"><animate attributeName="opacity" values="0;1;0" dur="1.9s" begin="0.6s" repeatCount="indefinite"/></rect>
+    <rect x="66" y="70" width="4" height="4"><animate attributeName="opacity" values="1;0;1" dur="2.7s" begin="0.3s" repeatCount="indefinite"/></rect>
+  </g>
+
+  <!-- 타이틀 -->
+  <text x="240" y="56" font-family="'DungGeunMo','Galmuri11',monospace" font-size="34" font-weight="bold" fill="#E6C15A" text-anchor="middle" letter-spacing="4">⚓ SEONGHWA ⚓</text>
+  <text x="240" y="82" font-family="'DungGeunMo','Galmuri11',monospace" font-size="13" fill="#9FB6E0" text-anchor="middle" letter-spacing="2">─ 소소한 하루 항해기 ─</text>
+</svg>
