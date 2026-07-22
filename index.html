@@ -19,8 +19,17 @@
   @keyframes tw { 0%,100%{opacity:.1} 50%{opacity:.8} }
   h1 { font-size:15px; letter-spacing:2px; text-shadow:2px 2px 0 #000; }
   .frame {
-    padding:6px; background:#0A1E4A;
+    padding:0 6px 6px; background:#0A1E4A;
     border:3px solid #E6C15A; outline:3px solid #0A1E4A; box-shadow:0 0 0 6px #7E5C1E, 6px 8px 0 rgba(0,0,0,.5);
+  }
+  .titlebar {
+    display:flex; align-items:center; justify-content:space-between;
+    padding:6px 4px; font-size:11px; letter-spacing:1px; color:#E6C15A;
+  }
+  .titlebar .btns { display:flex; gap:5px; }
+  .titlebar .btns span {
+    width:14px; height:14px; border:2px solid #E6C15A; display:inline-flex;
+    align-items:center; justify-content:center; font-size:9px; line-height:1;
   }
   canvas {
     display:block; width:min(92vw, 720px); aspect-ratio:3/2;
@@ -40,7 +49,10 @@
 <body>
 <div class="stars" id="stars"></div>
 <h1>⚓ SEONGHWA 항해기 ⚓</h1>
-<div class="frame"><canvas id="g" width="480" height="320"></canvas></div>
+<div class="frame">
+  <div class="titlebar"><span>⚓ SEONGHWA_항해기.EXE</span><span class="btns"><span>─</span><span>□</span><span>✕</span></span></div>
+  <canvas id="g" width="480" height="320"></canvas>
+</div>
 <div class="hint">← → 키 : 항로 / ↑ ↓ : 돛 올리기·내리기 / SPACE : 입항·대화</div>
 <div class="pads">
   <div class="grp"><button data-k="ArrowLeft">◀</button><button data-k="ArrowRight">▶</button></div>
@@ -103,6 +115,12 @@ let day = 1, dayT = 0, thanks = 0;
 const keys = {};
 let dlg = null; // {name, lines, li, ci, done}
 let nearPort = null;
+let scene = 'title'; // 'title' | 'play'
+const introLines = [
+  '반갑네, 항해사여! 나의 바다에 온 걸 환영하네.',
+  '←→ 로 키를 잡고, ↑↓ 로 돛을 조절하게.',
+  '바람(HUD의 화살표)을 등지면 배가 빨라진다네.',
+  '세 항구를 돌며 ✦ 감사 조각도 모아 보게. 출항!' ];
 
 // ───────── 입력 ─────────
 addEventListener('keydown', e => {
@@ -126,6 +144,11 @@ document.querySelectorAll('.pads button').forEach(b => {
   b.addEventListener('pointerleave',() => keys[k] = false);
 });
 function action() {
+  if (scene === 'title') {
+    scene = 'play';
+    dlg = { name: '항해사 성화', lines: introLines, li: 0, ci: 0, done: false };
+    return;
+  }
   if (dlg) {
     if (!dlg.done) { dlg.ci = dlg.lines[dlg.li].length; dlg.done = true; }
     else if (dlg.li < dlg.lines.length-1) { dlg.li++; dlg.ci = 0; dlg.done = false; }
@@ -135,12 +158,8 @@ function action() {
   }
 }
 
-// 시작 대사
-dlg = { name: '항해사 성화', li: 0, ci: 0, done: false, lines: [
-  '반갑네, 항해사여! 나의 바다에 온 걸 환영하네.',
-  '←→ 로 키를 잡고, ↑↓ 로 돛을 조절하게.',
-  '바람(HUD의 화살표)을 등지면 배가 빨라진다네.',
-  '세 항구를 돌며 ✦ 감사 조각도 모아 보게. 출항!' ]};
+// 캔버스 클릭/탭 → 시작 및 대화 진행
+cv.addEventListener('pointerdown', e => { e.preventDefault(); if (scene === 'title' || dlg || nearPort) action(); });
 
 // ───────── 유틸 ─────────
 const fract = n => n - Math.floor(n);
@@ -153,6 +172,7 @@ function update(dt) {
   T += dt;
   windT += dt;
   windA += Math.sin(windT*0.11) * 0.0009 + 0.0004;
+  if (scene === 'title') return;
 
   if (!dlg) {
     if (keys['ArrowLeft'])  ship.a -= 1.7*dt;
@@ -183,7 +203,50 @@ function update(dt) {
 }
 
 // ───────── 렌더 ─────────
+function drawTitle() {
+  // 하늘/바다
+  ctx.fillStyle = '#79B8E8'; ctx.fillRect(0, 0, W, 150);
+  ctx.fillStyle = '#9FD0F0'; ctx.fillRect(0, 150, W, 16);
+  ctx.fillStyle = '#1E5FA8'; ctx.fillRect(0, 166, W, H-166);
+  ctx.fillStyle = '#FFD75E'; ctx.fillRect(408, 26, 24, 24);
+  ctx.fillStyle = '#3D7FC4';
+  for (let row = 0; row < 4; row++) {
+    const y = 180 + row*30, dir = row%2 ? 1 : -1;
+    const off = ((T*20*dir) % 32 + 32) % 32;
+    for (let x = -32; x < W+32; x += 32) ctx.fillRect(Math.round(x+off), y, 14, 4);
+  }
+  // 큰 배 (좌우로 흔들)
+  ctx.save();
+  ctx.translate(W/2, 196 + Math.sin(T*1.6)*4);
+  ctx.rotate(Math.sin(T*1.1)*0.05);
+  ctx.scale(2.4, 2.4);
+  ctx.fillStyle = '#C93A3A'; ctx.fillRect(-1, -30, 12, 4);
+  ctx.fillStyle = '#4A2E14'; ctx.fillRect(-1, -26, 3, 22);
+  ctx.fillStyle = '#F5F1E6'; ctx.fillRect(-12, -22, 24, 15);
+  ctx.fillStyle = '#DDD5C0'; ctx.fillRect(-12, -10, 24, 3);
+  ctx.fillStyle = '#8B5A2B'; ctx.fillRect(-16, -4, 32, 4);
+  ctx.fillStyle = '#E6C15A'; ctx.fillRect(-18, 0, 36, 2);
+  ctx.fillStyle = '#6E441F'; ctx.fillRect(-18, 2, 36, 6);
+  ctx.restore();
+  // 타이틀
+  ctx.textAlign = 'center';
+  ctx.font = 'bold 34px ' + F;
+  ctx.fillStyle = '#00000066'; ctx.fillText('SEONGHWA 항해기', W/2+3, 78+3);
+  ctx.fillStyle = '#E6C15A'; ctx.fillText('SEONGHWA 항해기', W/2, 78);
+  ctx.font = '12px ' + F; ctx.fillStyle = '#F5F1E6';
+  ctx.fillText('─ 소소한 하루를 항해하다 ─', W/2, 102);
+  // PRESS START
+  if (Math.floor(T*1.6)%2) {
+    ctx.font = '15px ' + F; ctx.fillStyle = '#E6C15A';
+    ctx.fillText('▶ PRESS START (SPACE / 탭)', W/2, 278);
+  }
+  ctx.font = '9px ' + F; ctx.fillStyle = '#9FB6E0';
+  ctx.fillText('© seonghwa · 감사한 하루 제작소', W/2, 306);
+  ctx.textAlign = 'left';
+}
+
 function draw() {
+  if (scene === 'title') { drawTitle(); return; }
   const camX = Math.max(0, Math.min(WORLD.w-W, ship.x - W/2));
   const camY = Math.max(0, Math.min(WORLD.h-H, ship.y - H/2));
 
