@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 56" width="480" height="56">
+  <rect x="0" y="0" width="480" height="56" fill="#0A1E4A"/>
+  <rect x="0" y="0" width="480" height="3" fill="#E6C15A"/>
+  <rect x="0" y="53" width="480" height="3" fill="#E6C15A"/>
+
+  <!-- 흐르는 파도 -->
+  <line x1="-32" y1="44" x2="512" y2="44" stroke="#1E5FA8" stroke-width="5" stroke-dasharray="14 18">
+    <animate attributeName="stroke-dashoffset" values="0;32" dur="4s" repeatCount="indefinite"/>
+  </line>
+  <line x1="-32" y1="44" x2="512" y2="44" stroke="#3D7FC4" stroke-width="3" stroke-dasharray="8 24">
+    <animate attributeName="stroke-dashoffset" values="32;0" dur="5.5s" repeatCount="indefinite"/>
+  </line>
+
+  <!-- 작은 배 (오른쪽으로 항해) -->
+  <g>
+    <rect x="0" y="30" width="18" height="5" fill="#6E441F"/>
+    <rect x="2" y="28" width="14" height="2" fill="#E6C15A"/>
+    <rect x="8" y="18" width="2" height="10" fill="#4A2E14"/>
+    <rect x="3" y="19" width="10" height="7" fill="#F5F1E6"/>
+    <rect x="9" y="14" width="7" height="3" fill="#C93A3A"/>
+    <animateTransform attributeName="transform" type="translate" values="-30 0; 500 0" dur="26s" repeatCount="indefinite"/>
+  </g>
+
+  <!-- 문구 -->
+  <text x="240" y="24" font-family="'DungGeunMo','Galmuri11',monospace" font-size="13" fill="#E6C15A" text-anchor="middle" letter-spacing="2">─ 오늘도 순풍이 함께하길 ⚓ ─</text>
+</svg>
