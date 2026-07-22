@@ -2,13 +2,9 @@
 
 <img src="./title-seonghwa.svg" width="480" alt="SEONGHWA" />
 
-<a href="https://seonghwaya.github.io/seonghwaya/">
-  <img src="./voyage-seonghwa.svg" width="480" alt="voyage of seonghwa" />
-</a>
+<img src="./voyage-seonghwa.svg" width="480" alt="voyage of seonghwa" />
 
-<a href="https://seonghwaya.github.io/seonghwaya/">
-  <img src="./press-start.svg" width="480" alt="press start" />
-</a>
+<img src="./footer-voyage.svg" width="480" alt="fair winds" />
 
 <br>
 <br>
